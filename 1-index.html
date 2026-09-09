@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MINDROCKS</title>
+<meta name="description" content="Catch the thought before your inner editor makes it presentable.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🪨</text></svg>">
+<style>
+  :root{
+    --bg:#0c0c0d; --ink:#e8e6e1; --dim:#7a7873; --line:#232326;
+    --spark:#e8b04b; --build:#6db3f2; --question:#b48ef2;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    display:flex; flex-direction:column; align-items:center;
+    padding:0 20px 80px;
+  }
+  .wrap{width:100%;max-width:640px}
+  header{
+    padding:56px 0 8px; display:flex; align-items:baseline; justify-content:space-between;
+  }
+  h1{font-size:20px;letter-spacing:.35em;font-weight:600}
+  h1 .rock{letter-spacing:0}
+  .count{font-size:11px;color:var(--dim)}
+  .tagline{color:var(--dim);font-size:12px;padding-bottom:28px;border-bottom:1px solid var(--line)}
+  .composer{margin:28px 0 10px;position:relative}
+  #input{
+    width:100%;background:transparent;border:none;border-bottom:1px solid var(--line);
+    color:var(--ink);font:inherit;font-size:17px;padding:12px 2px;outline:none;
+    caret-color:var(--spark);
+  }
+  #input::placeholder{color:#4a4844}
+  .hint{font-size:11px;color:var(--dim);margin-top:8px}
+  .hint b{font-weight:400}
+  .kbd{border:1px solid var(--line);border-radius:3px;padding:0 4px;font-size:10px}
+  .filters{display:flex;gap:8px;margin:22px 0 6px;flex-wrap:wrap}
+  .chip{
+    background:transparent;border:1px solid var(--line);color:var(--dim);
+    font:inherit;font-size:11px;padding:4px 12px;border-radius:20px;cursor:pointer;
+    letter-spacing:.08em;
+  }
+  .chip:hover{border-color:#3a3a3e;color:var(--ink)}
+  .chip.on[data-k="spark"]{color:var(--spark);border-color:var(--spark)}
+  .chip.on[data-k="build"]{color:var(--build);border-color:var(--build)}
+  .chip.on[data-k="question"]{color:var(--question);border-color:var(--question)}
+  .chip.on[data-k="all"]{color:var(--ink);border-color:var(--ink)}
+  ul{list-style:none;margin-top:14px}
+  li.rock{
+    border-bottom:1px solid var(--line);padding:16px 2px;display:flex;gap:14px;
+    animation:drop .25s ease-out;
+  }
+  @keyframes drop{from{opacity:0;transform:translateY(-6px)}to{opacity:1}}
+  .dot{flex:0 0 auto;width:8px;height:8px;border-radius:50%;margin-top:7px}
+  .dot.spark{background:var(--spark)} .dot.build{background:var(--build)} .dot.question{background:var(--question)}
+  .body{flex:1;min-width:0}
+  .text{font-size:15px;line-height:1.5;word-wrap:break-word;white-space:pre-wrap}
+  .meta{font-size:10px;color:var(--dim);margin-top:6px;display:flex;gap:14px}
+  .kind-label{letter-spacing:.15em;text-transform:uppercase}
+  .kind-label.spark{color:var(--spark)} .kind-label.build{color:var(--build)} .kind-label.question{color:var(--question)}
+  .del{color:#4a4844;cursor:pointer;background:none;border:none;font:inherit;font-size:10px}
+  .del:hover{color:#c66}
+  .empty{color:#4a4844;font-size:13px;text-align:center;padding:60px 0 20px}
+  footer{margin-top:60px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--dim)}
+  footer button{
+    background:none;border:none;color:var(--dim);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;
+  }
+  footer button:hover{color:var(--ink)}
+  #fileInput{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>MIND<span class="rock">ROCKS</span></h1>
+    <span class="count" id="count"></span>
+  </header>
+  <div class="tagline">catch the thought before your inner editor makes it presentable</div>
+
+  <div class="composer">
+    <input id="input" type="text" placeholder="drop a rock..." autocomplete="off" autofocus>
+    <div class="hint">
+      <b>enter</b> to drop · prefix with <b>!</b> build · <b>?</b> question · otherwise it's a spark
+      · <span class="kbd">/</span> focus
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <button class="chip on" data-k="all">all</button>
+    <button class="chip" data-k="spark">sparks</button>
+    <button class="chip" data-k="build">things to build</button>
+    <button class="chip" data-k="question">questions</button>
+  </div>
+
+  <ul id="list"></ul>
+  <div class="empty" id="empty" hidden>nothing here yet. that's the point — go think something unpresentable.</div>
+
+  <footer>
+    <span>rocks live in this browser · nothing leaves the device</span>
+    <span>
+      <button id="exportBtn">export</button> ·
+      <button id="importBtn">import</button>
+      <input type="file" id="fileInput" accept=".json">
+    </span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var KEY='mindrocks.v1';
+  var input=document.getElementById('input'),
+      list=document.getElementById('list'),
+      empty=document.getElementById('empty'),
+      count=document.getElementById('count'),
+      chips=document.getElementById('filters'),
+      filter='all';
+
+  function load(){ try{return JSON.parse(localStorage.getItem(KEY))||[]}catch(e){return[]} }
+  function save(r){ localStorage.setItem(KEY,JSON.stringify(r)) }
+  var rocks=load();
+
+  function parse(t){
+    t=t.trim();
+    if(t.charAt(0)==='!') return {kind:'build',text:t.slice(1).trim()};
+    if(t.charAt(0)==='?') return {kind:'question',text:t.slice(1).trim()};
+    return {kind:'spark',text:t};
+  }
+  function fmt(ts){
+    var d=new Date(ts);
+    return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+
+           d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}).toLowerCase();
+  }
+  function render(){
+    list.innerHTML='';
+    var shown=rocks.filter(function(r){return filter==='all'||r.kind===filter});
+    shown.forEach(function(r){
+      var li=document.createElement('li'); li.className='rock';
+      var dot=document.createElement('span'); dot.className='dot '+r.kind;
+      var body=document.createElement('div'); body.className='body';
+      var tx=document.createElement('div'); tx.className='text'; tx.textContent=r.text;
+      var meta=document.createElement('div'); meta.className='meta';
+      var kl=document.createElement('span'); kl.className='kind-label '+r.kind; kl.textContent=r.kind;
+      var tm=document.createElement('span'); tm.textContent=fmt(r.ts);
+      var del=document.createElement('button'); del.className='del'; del.textContent='toss';
+      del.onclick=function(){
+        rocks=rocks.filter(function(x){return x.id!==r.id}); save(rocks); render();
+      };
+      meta.appendChild(kl); meta.appendChild(tm); meta.appendChild(del);
+      body.appendChild(tx); body.appendChild(meta);
+      li.appendChild(dot); li.appendChild(body);
+      list.appendChild(li);
+    });
+    empty.hidden=shown.length>0;
+    count.textContent=rocks.length+(rocks.length===1?' rock':' rocks');
+  }
+  input.addEventListener('keydown',function(e){
+    if(e.key!=='Enter') return;
+    var p=parse(input.value);
+    if(!p.text) return;
+    rocks.unshift({id:Date.now()+''+Math.floor(Math.random()*1e4),kind:p.kind,text:p.text,ts:Date.now()});
+    save(rocks); input.value=''; render();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='/'&&document.activeElement!==input){e.preventDefault();input.focus();}
+  });
+  chips.addEventListener('click',function(e){
+    var b=e.target.closest('.chip'); if(!b) return;
+    filter=b.dataset.k;
+    Array.prototype.forEach.call(chips.children,function(c){c.classList.toggle('on',c===b)});
+    render();
+  });
+  document.getElementById('exportBtn').onclick=function(){
+    var blob=new Blob([JSON.stringify(rocks,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download='mindrocks.json'; a.click();
+    URL.revokeObjectURL(a.href);
+  };
+  document.getElementById('importBtn').onclick=function(){document.getElementById('fileInput').click()};
+  document.getElementById('fileInput').addEventListener('change',function(e){
+    var f=e.target.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(){
+      try{
+        var data=JSON.parse(rd.result);
+        if(Array.isArray(data)){
+          var seen={}; rocks.forEach(function(r){seen[r.id]=1});
+          data.forEach(function(r){ if(r&&r.text&&!seen[r.id]) rocks.push(r) });
+          rocks.sort(function(a,b){return b.ts-a.ts});
+          save(rocks); render();
+        }
+      }catch(err){}
+    };
+    rd.readAsText(f);
+  });
+  render();
+})();
+</script>
+</body>
+</html>
